@@ -1,0 +1,13 @@
+# venv
+include/
+bin/
+lib/
+lib64
+.python-version
+pyvenv.cfg
+
+# data
+*.pt
+
+# scripts
+*_pycache_*
