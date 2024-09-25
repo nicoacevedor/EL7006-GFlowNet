@@ -5,6 +5,7 @@ lib/
 lib64
 .python-version
 pyvenv.cfg
+share/
 
 # data
 *.pt
