@@ -7,9 +7,13 @@ lib64
 pyvenv.cfg
 share/
 etc/
+Scripts/
 
 # data
 *.pt
 
 # scripts
 *_pycache_*
+
+# experiments
+training
