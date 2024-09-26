@@ -5,9 +5,10 @@ import torch
 
 class NetworkSystemSimulator(object):
     
-    def __init__(self, random_state=7, prob=0.9):
+    def __init__(self, random_state=7, prob=0.9, device: str = "cpu"):
         np.random.seed(random_state)
         self.p = prob     
+        self.device = device
 
     def create_connectivity(self, n_neurons):
         """ Generate our NxN causal connectivity matrix.
@@ -32,7 +33,7 @@ class NetworkSystemSimulator(object):
 
         return (1e-12) * np.ones_like(eigen_values)
     
-    def simulate_neurons(self, A: torch.Tensor, timesteps: int = 5000, initial_value: torch.Tensor = None, perturb=False):
+    def simulate_neurons(self, A: torch.Tensor, timesteps: int = 5000, initial_value: torch.Tensor | None = None, perturb=False):
         """
         Simulates a dynamical system for the specified number 
         of neurons and timesteps,
@@ -49,17 +50,17 @@ class NetworkSystemSimulator(object):
         """
         n_neurons = len(A)
         if initial_value is None:
-            X = torch.rand((n_neurons, timesteps))
+            X = torch.rand((n_neurons, timesteps), device=self.device)
         else:
-            X = torch.zeros((n_neurons, timesteps))
+            X = torch.zeros((n_neurons, timesteps), device=self.device)
             X[:, 0] = initial_value
         
         for t in range(timesteps - 1):
             
             if t % 2 == 0 and perturb:
-                X[:, t] = torch.rand(n_neurons)
+                X[:, t] = torch.rand(n_neurons, device=self.device)
             
-            epsilon = torch.randn(n_neurons)
+            epsilon = torch.randn(n_neurons, device=self.device)
             X[:, t + 1] = sigmoid(torch.matmul(A, X[:, t]) + epsilon) 
 
         return X
