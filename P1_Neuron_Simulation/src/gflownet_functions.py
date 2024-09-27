@@ -2,7 +2,8 @@ import torch
 
 
 def reward_function(original: torch.Tensor, generated: torch.Tensor) -> torch.Tensor:
-    diff = torch.nn.functional.mse_loss(generated, original)
+    # diff = torch.nn.functional.mse_loss(generated, original)
+    diff = (generated - original).square().sum()
     return 1 / (diff + 1)
 
 
@@ -14,13 +15,7 @@ def column_reward(matrix: torch.Tensor, std: float = 1.0) -> torch.Tensor:
 
 
 def get_parents_flow_continuous(state: torch.Tensor, step: int) -> torch.Tensor:
-    flow_list = []
-    new_state = torch.zeros_like(state)
-    for i in range(step):
-        flow = state[i]
-        flow_list.append(flow)
-        new_state[i] = flow
-    return torch.tensor(flow_list)
+    return state[step].sum()
 
 
 def get_parents_flow_binary(
