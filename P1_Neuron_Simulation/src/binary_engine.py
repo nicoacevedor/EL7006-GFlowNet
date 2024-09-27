@@ -13,10 +13,13 @@ from .gflownet_functions import reward_function, get_parents_flow_binary
 
 class GFlowBinaryEngine:
     
-    def __init__(self, model: torch.nn.Module, neuron_simulator: NetworkSystemSimulator) -> None:
+    def __init__(self, model: torch.nn.Module, neuron_simulator: NetworkSystemSimulator, device: str | None = None) -> None:
         self.model = model
         self.neuron_simulator = neuron_simulator
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
         self.model.to(self.device)
         self.train_loss = []
         self.train_reward = []
@@ -38,18 +41,20 @@ class GFlowBinaryEngine:
         )
         print(f"Using device {self.device}")
         for epoch in tqdm(range(n_epochs), desc="Training..."):
-            pbar = tqdm(train_dataloader, desc=f"Epoch {epoch:<5}")
+            pbar = tqdm(train_dataloader, desc=f"Epoch {epoch:<5}", leave=False)
             for batch in pbar:
                 batch_loss = torch.tensor(0., device=self.device)
                 for simulation in batch:
                     _, loss = self.sample_matrix(simulation)
                     batch_loss = batch_loss + loss
                 batch_loss = batch_loss / len(batch)
-                self.train_loss.append(batch_loss.detach().cpu().item())
+                loss_item = batch_loss.detach().cpu().item()
+                self.train_loss.append(loss_item)
                 batch_loss.backward()
                 opt.step()
                 opt.zero_grad()
-        self.save_training("training/exp0")
+                pbar.set_postfix_str(f"loss: {loss_item:.3f}")
+        self.save_training("training/binary/exp3")
 
     def sample_matrix(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         n_neurons = x.shape[0]
@@ -62,7 +67,7 @@ class GFlowBinaryEngine:
             action = Categorical(probs=policy).sample()
             new_state = state.clone()
             new_state[t] = action
-            parents_flow = get_parents_flow_binary(state, t+1, self.model)
+            parents_flow = get_parents_flow_binary(new_state, t+1, self.model)
             if t == matrix_length - 1:
                 x_hat = self.neuron_simulator.simulate_neurons(
                     A=new_state.reshape(n_neurons, n_neurons),
@@ -103,10 +108,17 @@ class GFlowBinaryEngine:
             plt.axis("off")
         plt.savefig(path/"samples.png")
 
+    def save_reward_histogram(self, path: Path) -> None:
+        matplotlib.use("Agg")
+        plt.figure(figsize=(14, 8))
+        plt.hist(self.train_reward)
+        plt.savefig(path/"histogram.png")
+
     def save_training(self, folder_path: str) -> None:
         path = Path(folder_path)
         path.mkdir(parents=True, exist_ok=True)
         torch.save(self.model.state_dict(), path/"model.pt")
         self.save_metrics_plot(path)
         self.save_n_samples(64, (8, 8), path)
+        self.save_reward_histogram(path)
         
