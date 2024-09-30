@@ -54,21 +54,28 @@ class GFlowBinaryEngine:
                 opt.step()
                 opt.zero_grad()
                 pbar.set_postfix_str(f"loss: {loss_item:.3f}")
-        self.save_training("training/binary/exp3")
+        self.save_training("training/binary/exp_all_space_v2")
+
+    def apply_action(self, state: torch.Tensor, flow: torch.Tensor) -> torch.Tensor:
+        policy = torch.stack((1 - flow, flow), dim=1)
+        changes = Categorical(probs=policy.unsqueeze(1)).sample()
+        changes = changes.squeeze().float()
+        return (state.clone() + changes).clamp(0, 1)
 
     def sample_matrix(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         n_neurons = x.shape[0]
         matrix_length = n_neurons * n_neurons
         state = torch.zeros(matrix_length, device=self.device)
+        parents_list = []
         flow_mismatch = torch.tensor(0., device=self.device)
-        for t in range(matrix_length):
-            flow_prediction = self.model(state)
-            policy = flow_prediction / flow_prediction.sum()
-            action = Categorical(probs=policy).sample()
-            new_state = state.clone()
-            new_state[t] = action
-            parents_flow = get_parents_flow_binary(new_state, t+1, self.model)
-            if t == matrix_length - 1:
+        for t in range(n_neurons):
+            with torch.no_grad():
+                flow_prediction = self.model(state)
+            # policy = flow_prediction / flow_prediction.sum()
+            new_state = self.apply_action(state, flow_prediction)
+            parents_list.append(state)
+            parents_flow = get_parents_flow_binary(parents_list, self.model)
+            if t == n_neurons - 1:
                 x_hat = self.neuron_simulator.simulate_neurons(
                     A=new_state.reshape(n_neurons, n_neurons),
                     timesteps=x.shape[1],
