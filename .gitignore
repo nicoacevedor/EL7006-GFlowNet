@@ -11,6 +11,7 @@ Scripts/
 
 # data
 *.pt
+*.zip
 
 # scripts
 *_pycache_*
