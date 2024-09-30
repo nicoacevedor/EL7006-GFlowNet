@@ -8,7 +8,11 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from .simulators import NetworkSystemSimulator
-from .gflownet_functions import reward_function, get_parents_flow_binary
+from .gflownet_functions import (
+    reward_function, 
+    # get_parents,
+    get_parents_flow_binary,
+)
 
 
 class GFlowBinaryEngine:
@@ -56,11 +60,11 @@ class GFlowBinaryEngine:
                 pbar.set_postfix_str(f"loss: {loss_item:.3f}")
         self.save_training("training/binary/exp_all_space_v2")
 
-    def apply_action(self, state: torch.Tensor, flow: torch.Tensor) -> torch.Tensor:
-        policy = torch.stack((1 - flow, flow), dim=1)
-        changes = Categorical(probs=policy.unsqueeze(1)).sample()
-        changes = changes.squeeze().float()
-        return (state.clone() + changes).clamp(0, 1)
+    def apply_action(self, state: torch.Tensor, policy: torch.Tensor) -> torch.Tensor:
+        change = Categorical(probs=policy).sample()
+        new_state = state.clone()
+        new_state[change] = 1
+        return new_state
 
     def sample_matrix(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         n_neurons = x.shape[0]
@@ -68,14 +72,14 @@ class GFlowBinaryEngine:
         state = torch.zeros(matrix_length, device=self.device)
         parents_list = []
         flow_mismatch = torch.tensor(0., device=self.device)
-        for t in range(n_neurons):
+        for t in range(matrix_length):
             with torch.no_grad():
                 flow_prediction = self.model(state)
-            # policy = flow_prediction / flow_prediction.sum()
-            new_state = self.apply_action(state, flow_prediction)
-            parents_list.append(state)
-            parents_flow = get_parents_flow_binary(parents_list, self.model)
-            if t == n_neurons - 1:
+            policy = flow_prediction / flow_prediction.sum()
+            new_state = self.apply_action(state, policy)
+            # parents_list, actions_list = get_parents(new_state)
+            parents_flow = get_parents_flow_binary(new_state, self.model)
+            if t == n_neurons - 1 or (new_state == state).all():
                 x_hat = self.neuron_simulator.simulate_neurons(
                     A=new_state.reshape(n_neurons, n_neurons),
                     timesteps=x.shape[1],
@@ -84,6 +88,7 @@ class GFlowBinaryEngine:
                 reward = reward_function(x, x_hat)
                 state_flow = torch.tensor(0., device=self.device)
                 self.train_reward.append(reward.item())
+                break
             else:
                 reward = torch.tensor(0., device=self.device)
                 state_flow = self.model(new_state).sum()
