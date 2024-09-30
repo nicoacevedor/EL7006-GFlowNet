@@ -2,8 +2,8 @@ import torch
 
 
 def reward_function(original: torch.Tensor, generated: torch.Tensor) -> torch.Tensor:
-    # diff = torch.nn.functional.mse_loss(generated, original)
-    diff = (generated - original).square().sum()
+    diff = torch.nn.functional.mse_loss(generated, original)
+    # diff = (generated - original).square().sum()
     return 1 / (diff + 1)
 
 
@@ -19,16 +19,9 @@ def get_parents_flow_continuous(state: torch.Tensor, step: int) -> torch.Tensor:
 
 
 def get_parents_flow_binary(
-    state: torch.Tensor, 
-    step: int, 
-    flow_function: torch.nn.Module
+    parents: list[torch.Tensor], flow_function: torch.nn.Module
 ) -> torch.Tensor:
-    flow_list = []
-    new_state = torch.zeros_like(state)
-    for i in range(step):
-        index = state[i]
-        flow = flow_function(new_state)
-        flow_list.append(flow[index.int()])
-        new_state = new_state.clone()
-        new_state[i] = index
-    return sum(flow_list, start=torch.tensor(0., device=flow_function.device))
+    return sum(
+        (flow_function(parent).sum() for parent in parents),
+        start=torch.tensor(0.0, device=flow_function.device),
+    )
