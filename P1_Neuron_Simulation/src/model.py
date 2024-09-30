@@ -18,5 +18,4 @@ class FlowModel(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.mlp(x)
-        # return sigmoid(y)
-        return y.sigmoid() * (1 - x)
+        return sigmoid(y)
