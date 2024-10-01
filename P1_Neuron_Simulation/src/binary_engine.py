@@ -48,17 +48,18 @@ class GFlowBinaryEngine:
             pbar = tqdm(train_dataloader, desc=f"Epoch {epoch:<5}", leave=False)
             for batch in pbar:
                 batch_loss = torch.tensor(0., device=self.device)
-                for simulation in batch:
+                for i, simulation in enumerate(batch):
                     _, loss = self.sample_matrix(simulation)
                     batch_loss = batch_loss + loss
+                    pbar.set_postfix(dict(loss=loss.detach().cpu().item(), simulation=i))
                 batch_loss = batch_loss / len(batch)
                 loss_item = batch_loss.detach().cpu().item()
                 self.train_loss.append(loss_item)
                 batch_loss.backward()
                 opt.step()
                 opt.zero_grad()
-                pbar.set_postfix_str(f"loss: {loss_item:.3f}")
-        self.save_training("training/binary/exp_all_space_v2")
+                # pbar.set_postfix_str(f"loss: {loss_item:.3f}")
+        self.save_training("training/binary/noise_1e-2_5epochs")
 
     def apply_action(self, state: torch.Tensor, policy: torch.Tensor) -> torch.Tensor:
         change = Categorical(probs=policy).sample()
@@ -79,7 +80,7 @@ class GFlowBinaryEngine:
             new_state = self.apply_action(state, policy)
             # parents_list, actions_list = get_parents(new_state)
             parents_flow = get_parents_flow_binary(new_state, self.model)
-            if t == n_neurons - 1 or (new_state == state).all():
+            if (t == matrix_length - 1) or (new_state == state).all():
                 x_hat = self.neuron_simulator.simulate_neurons(
                     A=new_state.reshape(n_neurons, n_neurons),
                     timesteps=x.shape[1],
