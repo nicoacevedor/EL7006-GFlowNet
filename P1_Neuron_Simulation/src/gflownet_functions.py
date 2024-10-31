@@ -1,9 +1,22 @@
 import torch
 
 
-def reward_function(original: torch.Tensor, generated: torch.Tensor) -> torch.Tensor:
+# def reward_function(original: torch.Tensor, generated: torch.Tensor) -> torch.Tensor:
+#     diff = torch.nn.functional.mse_loss(generated, original)
+#     return 1 / (diff + 1e-3)
+
+
+def reward_function(original: torch.Tensor, generated: torch.Tensor, matrix: torch.Tensor) -> torch.Tensor:
+    if (matrix.sum(dim=0) != 1).any() or (matrix.sum(dim=1) != 1).any():
+        return torch.tensor(0.)
     diff = torch.nn.functional.mse_loss(generated, original)
-    return 1 / (diff + 1)
+    return 1 / (diff + 1e-3)
+
+
+# def reward_function(original: torch.Tensor, generated: torch.Tensor) -> torch.Tensor:
+#     if (generated.sum(dim=0) != 1).any() or (generated.sum(dim=1) != 1).any():
+#         return torch.tensor(0.)
+#     return torch.tensor(1.)
 
 
 def column_reward(matrix: torch.Tensor, std: float = 1.0) -> torch.Tensor:
@@ -17,15 +30,17 @@ def get_parents_flow_continuous(state: torch.Tensor, step: int) -> torch.Tensor:
     return state[step].sum()
 
 
-def get_all_binary_matrices(n_spaces: int, flow_function: torch.nn.Module) -> list[torch.Tensor]:
+def get_all_binary_matrices(n_spaces: int, flow_function: torch.nn.Module) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     all_matrices = []
+    all_flow = []
     for k in range(2**n_spaces):
         number = [int(i) for i in bin(k)[2:]]
         if (n := len(number)) < n_spaces:
             number = [0] * (n_spaces - n) + number
         matrix = torch.tensor(number, dtype=torch.float, device=flow_function.device)
-        all_matrices.append(flow_function(matrix))
-    return all_matrices
+        all_matrices.append(matrix)
+        all_flow.append(flow_function(matrix))
+    return all_matrices, all_flow
 
 
 def matrix_to_id(matrix: torch.Tensor) -> int:
@@ -37,10 +52,10 @@ def matrix_to_id(matrix: torch.Tensor) -> int:
 def get_parents_flow_binary(
         state: torch.Tensor, 
         flow_function: torch.nn.Module, 
-        matrices: list[torch.Tensor] | None = None
+        flows: list[torch.Tensor] | None = None
     ):
-    if matrices is None:
-        matrices = get_all_binary_matrices(len(state), flow_function)
+    if flows is None:
+        flows, _ = get_all_binary_matrices(len(state), flow_function)
     
     if (state == torch.zeros_like(state)).all():
         return torch.tensor(0.)
@@ -51,7 +66,7 @@ def get_parents_flow_binary(
         parent = state.clone()
         parent[i] = 0
         parent_id = matrix_to_id(parent)
-        flow = matrices[parent_id][i] + get_parents_flow_binary(parent, flow_function, matrices)
+        flow = flows[parent_id][i] + get_parents_flow_binary(parent, flow_function, flows)
         state_flow = state_flow + flow
     return state_flow
 
