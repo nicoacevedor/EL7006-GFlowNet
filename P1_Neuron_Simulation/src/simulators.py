@@ -58,9 +58,9 @@ class NetworkSystemSimulator(object):
         for t in range(timesteps - 1):
             
             if t % 2 == 0 and perturb:
-                X[:, t] = 0.01 * torch.rand(n_neurons, device=self.device)
+                X[:, t] = 1e-3 * torch.rand(n_neurons, device=self.device)
             
-            epsilon = torch.randn(n_neurons, device=self.device)
+            epsilon = 1e-2 * torch.randn(n_neurons, device=self.device)
             X[:, t + 1] = sigmoid(torch.matmul(A, X[:, t]) + epsilon) 
 
         return X
