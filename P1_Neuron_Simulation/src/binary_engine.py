@@ -12,6 +12,7 @@ from .gflownet_functions import (
     reward_function, 
     # get_parents,
     get_parents_flow_binary,
+    get_all_binary_matrices
 )
 
 
@@ -34,6 +35,7 @@ class GFlowBinaryEngine:
             n_epochs: int = 1,
             batch_size: int = 1,
             lr: float = 0.001,
+            output_path :str = ""
         ) -> None:
         opt = torch.optim.Adam(self.model.parameters(), lr=lr)  # type: ignore
         self.model.train()
@@ -47,9 +49,10 @@ class GFlowBinaryEngine:
         for epoch in tqdm(range(n_epochs), desc="Training..."):
             pbar = tqdm(train_dataloader, desc=f"Epoch {epoch:<5}", leave=False)
             for batch in pbar:
+                presampled_flows, _ = get_all_binary_matrices(9, self.model)
                 batch_loss = torch.tensor(0., device=self.device)
                 for i, simulation in enumerate(batch):
-                    _, loss = self.sample_matrix(simulation)
+                    _, loss = self.sample_matrix(simulation, presampled_flows)
                     batch_loss = batch_loss + loss
                     pbar.set_postfix(dict(loss=loss.detach().cpu().item(), simulation=i))
                 batch_loss = batch_loss / len(batch)
@@ -59,7 +62,7 @@ class GFlowBinaryEngine:
                 opt.step()
                 opt.zero_grad()
                 # pbar.set_postfix_str(f"loss: {loss_item:.3f}")
-        self.save_training("training/binary/noise_1e-2_5epochs")
+        self.save_training(output_path)
 
     def apply_action(self, state: torch.Tensor, policy: torch.Tensor) -> torch.Tensor:
         change = Categorical(probs=policy).sample()
@@ -67,11 +70,10 @@ class GFlowBinaryEngine:
         new_state[change] = 1
         return new_state
 
-    def sample_matrix(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def sample_matrix(self, x: torch.Tensor, presampled_flows: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         n_neurons = x.shape[0]
         matrix_length = n_neurons * n_neurons
         state = torch.zeros(matrix_length, device=self.device)
-        parents_list = []
         flow_mismatch = torch.tensor(0., device=self.device)
         for t in range(matrix_length):
             with torch.no_grad():
@@ -79,14 +81,15 @@ class GFlowBinaryEngine:
             policy = flow_prediction / flow_prediction.sum()
             new_state = self.apply_action(state, policy)
             # parents_list, actions_list = get_parents(new_state)
-            parents_flow = get_parents_flow_binary(new_state, self.model)
+            parents_flow = get_parents_flow_binary(new_state, self.model, presampled_flows)
             if (t == matrix_length - 1) or (new_state == state).all():
+                matrix = new_state.reshape(n_neurons, n_neurons)
                 x_hat = self.neuron_simulator.simulate_neurons(
-                    A=new_state.reshape(n_neurons, n_neurons),
+                    A=matrix,
                     timesteps=x.shape[1],
                     initial_value=x[:, 0]
                 )
-                reward = reward_function(x, x_hat)
+                reward = reward_function(x, x_hat, matrix)
                 state_flow = torch.tensor(0., device=self.device)
                 self.train_reward.append(reward.item())
                 break
@@ -97,8 +100,8 @@ class GFlowBinaryEngine:
             state = new_state
         return state, flow_mismatch
         
-    def __call__(self, x: torch.Tensor) -> torch.Tensor:
-        return self.sample_matrix(x)[0]
+    def __call__(self, x: torch.Tensor, presampled_flows: torch.Tensor = None) -> torch.Tensor:
+        return self.sample_matrix(x, presampled_flows)[0]
     
     def save_metrics_plot(self, path: Path) -> None:
         matplotlib.use("Agg")
