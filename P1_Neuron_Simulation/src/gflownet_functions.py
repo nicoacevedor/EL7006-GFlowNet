@@ -14,11 +14,11 @@ from torch import (
 #     return 1 / (diff + 1e-3)
 
 
-def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
-    if (matrix.sum(dim=0) != 1).any() or (matrix.sum(dim=1) != 1).any():
-        return tensor(0.)
-    diff = nn.functional.mse_loss(generated, original)
-    return 1 / (diff + 1e-3)
+# def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
+#     if (matrix.sum(dim=0) != 1).any() or (matrix.sum(dim=1) != 1).any():
+#         return tensor(0.)
+#     diff = nn.functional.mse_loss(generated, original)
+#     return 1 / (diff + 1e-3)
 
 
 # def reward_function(original: Tensor, generated: Tensor) -> Tensor:
@@ -26,12 +26,12 @@ def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tens
 #         return tensor(0.)
 #     return tensor(1.)
 
-# def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
-#     # si la matriz tiene algún elemento en la diagonal, está mal
-#     if torch.diag(matrix).sum() > 0:
-#         return tensor(0., device=matrix.device)
-#     diff = nn.functional.mse_loss(generated, original)
-#     return 1 / (diff + 1e-3)
+def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
+    # si la matriz tiene algún elemento en la diagonal, está mal
+    if torch.diag(matrix).sum() > 0:
+        return tensor(0., device=matrix.device)
+    diff = nn.functional.mse_loss(generated, original)
+    return 1 / (diff + 1e-3)
 
 
 def column_reward(matrix: Tensor, std: float = 1.0) -> Tensor:
