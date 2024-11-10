@@ -3,14 +3,14 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
+from torch import Tensor
 from torch.distributions.categorical import Categorical
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from .simulators import NetworkSystemSimulator
 from .gflownet_functions import (
-    reward_function, 
-    # get_parents,
+    correntropy_reward,
     get_parents_flow_binary,
     get_all_binary_matrices
 )
@@ -61,16 +61,19 @@ class GFlowBinaryEngine:
                 batch_loss.backward()
                 opt.step()
                 opt.zero_grad()
-                # pbar.set_postfix_str(f"loss: {loss_item:.3f}")
         self.save_training(output_path)
 
-    def apply_action(self, state: torch.Tensor, policy: torch.Tensor) -> torch.Tensor:
+    def apply_action(self, state: Tensor, policy: Tensor) -> Tensor:
         change = Categorical(probs=policy).sample()
         new_state = state.clone()
         new_state[change] = 1
         return new_state
+    
+    @staticmethod
+    def reward_function(x: Tensor, y: Tensor, **kwargs) -> Tensor:
+        return correntropy_reward(x, y, kwargs["kernel_width"])
 
-    def sample_matrix(self, x: torch.Tensor, presampled_flows: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def sample_matrix(self, x: Tensor, presampled_flows: list[Tensor] | None) -> tuple[Tensor, Tensor]:
         n_neurons = x.shape[0]
         matrix_length = n_neurons * n_neurons
         state = torch.zeros(matrix_length, device=self.device)
@@ -80,7 +83,6 @@ class GFlowBinaryEngine:
                 flow_prediction = self.model(state)
             policy = flow_prediction / flow_prediction.sum()
             new_state = self.apply_action(state, policy)
-            # parents_list, actions_list = get_parents(new_state)
             parents_flow = get_parents_flow_binary(new_state, self.model, presampled_flows)
             if (t == matrix_length - 1) or (new_state == state).all():
                 matrix = new_state.reshape(n_neurons, n_neurons)
@@ -89,7 +91,7 @@ class GFlowBinaryEngine:
                     timesteps=x.shape[1],
                     initial_value=x[:, 0]
                 )
-                reward = reward_function(x, x_hat, matrix)
+                reward = self.reward_function(x, x_hat, kernel_width=0.2)
                 state_flow = torch.tensor(0., device=self.device)
                 self.train_reward.append(reward.item())
                 break
@@ -100,7 +102,7 @@ class GFlowBinaryEngine:
             state = new_state
         return state, flow_mismatch
         
-    def __call__(self, x: torch.Tensor, presampled_flows: torch.Tensor = None) -> torch.Tensor:
+    def __call__(self, x: Tensor, presampled_flows: list[Tensor] | None = None) -> Tensor:
         return self.sample_matrix(x, presampled_flows)[0]
     
     def save_metrics_plot(self, path: Path) -> None:
@@ -137,4 +139,3 @@ class GFlowBinaryEngine:
         self.save_metrics_plot(path)
         self.save_n_samples(64, (8, 8), path)
         self.save_reward_histogram(path)
-        
