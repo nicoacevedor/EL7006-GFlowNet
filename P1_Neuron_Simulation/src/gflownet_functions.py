@@ -7,31 +7,31 @@ from torch import (
     tensor, 
     zeros_like
 )
+from .utils import correntropy
 
 
-# def reward_function(original: Tensor, generated: Tensor) -> Tensor:
-#     diff = nn.functional.mse_loss(generated, original)
-#     return 1 / (diff + 1e-3)
+def MSE_simple(original: Tensor, generated: Tensor) -> Tensor:
+    diff = nn.functional.mse_loss(generated, original)
+    return 1 / (diff + 1e-3)
 
 
-# def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
-#     if (matrix.sum(dim=0) != 1).any() or (matrix.sum(dim=1) != 1).any():
-#         return tensor(0.)
-#     diff = nn.functional.mse_loss(generated, original)
-#     return 1 / (diff + 1e-3)
+def MSE_force_diag(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
+    if (matrix.sum(dim=0) != 1).any() or (matrix.sum(dim=1) != 1).any():
+        return tensor(0.)
+    diff = nn.functional.mse_loss(generated, original)
+    return 1 / (diff + 1e-3)
 
 
-# def reward_function(original: Tensor, generated: Tensor) -> Tensor:
-#     if (generated.sum(dim=0) != 1).any() or (generated.sum(dim=1) != 1).any():
-#         return tensor(0.)
-#     return tensor(1.)
-
-def reward_function(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
+def MSE_force_zero_diag(original: Tensor, generated: Tensor, matrix: Tensor) -> Tensor:
     # si la matriz tiene algún elemento en la diagonal, está mal
     if torch.diag(matrix).sum() > 0:
         return tensor(0., device=matrix.device)
     diff = nn.functional.mse_loss(generated, original)
     return 1 / (diff + 1e-3)
+
+
+def correntropy_reward(original: Tensor, generated: Tensor, kernel_width: Tensor | float) -> Tensor:
+    return correntropy(original, generated, kernel_width)
 
 
 def column_reward(matrix: Tensor, std: float = 1.0) -> Tensor:
@@ -60,7 +60,7 @@ def get_all_binary_matrices(n_spaces: int, flow_function: nn.Module) -> tuple[li
 
 def matrix_to_id(matrix: Tensor) -> int:
     powers = reversed(range(len(matrix)))
-    powers = tensor(list(powers), dtype=float, device=matrix.device)
+    powers = tensor(list(powers), dtype=torch.float, device=matrix.device)
     return int((matrix * 2**powers).sum().item())
 
 
