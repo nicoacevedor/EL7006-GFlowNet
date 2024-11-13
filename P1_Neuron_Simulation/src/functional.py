@@ -26,3 +26,17 @@ def correlation_for_all_neurons(X):
     R = np.corrcoef(S)[:n_neurons, n_neurons:]
 
     return R
+
+
+def LSE(x: torch.Tensor) -> torch.Tensor:
+    ...
+
+
+def gaussian_kernel(x: torch.Tensor, kernel_width: torch.Tensor | float) -> torch.Tensor:
+    kernel_width = torch.tensor(kernel_width)
+    arg = -(x).square() / (2 * kernel_width.square())
+    return 0.39894 * arg.exp() / kernel_width
+
+
+def correntropy(x: torch.Tensor, y: torch.Tensor, kernel_width: torch.Tensor | float) -> torch.Tensor:
+    return gaussian_kernel(x - y, kernel_width).mean()
