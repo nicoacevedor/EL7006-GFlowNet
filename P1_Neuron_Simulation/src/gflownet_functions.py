@@ -7,7 +7,7 @@ from torch import (
     tensor, 
     zeros_like
 )
-from .utils import correntropy
+from .functional import correntropy
 
 
 def MSE_simple(original: Tensor, generated: Tensor) -> Tensor:
@@ -30,7 +30,9 @@ def MSE_force_zero_diag(original: Tensor, generated: Tensor, matrix: Tensor) -> 
     return 1 / (diff + 1e-3)
 
 
-def correntropy_reward(original: Tensor, generated: Tensor, kernel_width: Tensor | float) -> Tensor:
+def correntropy_reward(original: Tensor, generated: Tensor, kernel_width: Tensor | float, matrix: Tensor) -> Tensor:
+    if matrix.diag().sum() > 0 or matrix.sum() < 6:
+        return torch.tensor(0.)
     return correntropy(original, generated, kernel_width)
 
 
@@ -84,25 +86,3 @@ def get_parents_flow_binary(
         flow = flows[parent_id][i] + get_parents_flow_binary(parent, flow_function, flows)
         state_flow = state_flow + flow
     return state_flow
-
-
-
-
-
-# def get_parents_flow_binary(state: Tensor, flow_function: nn.Module) -> Tensor:
-#     memo = dict()
-#     def get_parents_flow_recursive(state: Tensor, memo: dict, flow_function: nn.Module) -> Tensor:
-#         if (state == zeros_like(state)).all():
-#             return tensor(0.)
-#         indexes = state.nonzero(as_tuple=True)[0]
-#         state_flow = tensor(0.)
-#         for i in indexes:
-#             parent = state.clone()
-#             parent[i] = 0
-#             if parent not in memo:
-#                 memo[parent] = flow_function(parent)                        
-#             flow = memo[parent][i] + get_parents_flow_recursive(parent, memo, flow_function)
-#             state_flow = state_flow + flow
-#         return state_flow
-#     return get_parents_flow_recursive(state, memo, flow_function)
-            
