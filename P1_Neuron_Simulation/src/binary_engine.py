@@ -71,7 +71,7 @@ class GFlowBinaryEngine:
     
     @staticmethod
     def reward_function(x: Tensor, y: Tensor, **kwargs) -> Tensor:
-        return correntropy_reward(x, y, kwargs["kernel_width"])
+        return correntropy_reward(x, y, kwargs["kernel_width"], kwargs["matrix"])
 
     def sample_matrix(self, x: Tensor, presampled_flows: list[Tensor] | None) -> tuple[Tensor, Tensor]:
         n_neurons = x.shape[0]
@@ -91,7 +91,7 @@ class GFlowBinaryEngine:
                     timesteps=x.shape[1],
                     initial_value=x[:, 0]
                 )
-                reward = self.reward_function(x, x_hat, kernel_width=0.2)
+                reward = self.reward_function(x, x_hat, kernel_width=0.1, matrix=matrix)
                 state_flow = torch.tensor(0., device=self.device)
                 self.train_reward.append(reward.item())
                 break
